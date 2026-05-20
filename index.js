@@ -1,4 +1,4 @@
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const dotenv = require('dotenv');
 const express = require('express');
 const  cors = require('cors');
@@ -24,10 +24,19 @@ async function run() {
     const db = client.db("mediqueue")
     const mediqueueCollection = db.collection("tutors")
 
+    app.get("/tutors/:id", async(req,res)=>{
+      const {id} = req.params
+      const result = await mediqueueCollection.findOne({_id: new ObjectId(id)})
+      res.json(result)
+    })
     
+    app.get("/tutors",async(req,res)=>{
+      const result = await mediqueueCollection.find().toArray()
+      res.json(result)
+    })
+
     app.post("/tutors", async(req,res)=>{
       const tutorsData = req.body
-      console.log(tutorsData)
       const result = await mediqueueCollection.insertOne(tutorsData)
       res.json(result)
 
@@ -44,7 +53,7 @@ async function run() {
 run().catch(console.dir);
 
 app.get('/', (req, res) => {
-  res.send('Hello')
+  res.send('Server is Running Fine!')
 })
 
 
