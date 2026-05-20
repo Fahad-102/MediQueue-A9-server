@@ -36,6 +36,12 @@ async function run() {
       res.json(result)
     })
 
+    app.delete("tutors/:id",async(req,res)=>{
+      const {id} = req.params
+      const result = await mediqueueCollection.deleteOne({_id: new ObjectId(id)})
+      res.json(result)
+    })
+
     app.get("/tutors/:id", async(req,res)=>{
       const {id} = req.params
       const result = await mediqueueCollection.findOne({_id: new ObjectId(id)})
