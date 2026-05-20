@@ -24,11 +24,24 @@ async function run() {
     const db = client.db("mediqueue")
     const mediqueueCollection = db.collection("tutors")
 
+
+    app.patch("/tutors/:id",async (req,res)=>{
+      const {id} = req.params
+      const updatedata = req.body
+
+      const result = await mediqueueCollection.updateOne(
+        {_id: new ObjectId(id)},
+        {$set:updatedata}
+      )
+      res.json(result)
+    })
+
     app.get("/tutors/:id", async(req,res)=>{
       const {id} = req.params
       const result = await mediqueueCollection.findOne({_id: new ObjectId(id)})
       res.json(result)
     })
+
     
     app.get("/tutors",async(req,res)=>{
       const result = await mediqueueCollection.find().toArray()
