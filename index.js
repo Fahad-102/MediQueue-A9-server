@@ -69,7 +69,14 @@ async function run() {
       res.json(result)
     })
 
-    app.get("/tutors/:id", async(req,res)=>{
+    app.get("/tutors/:id", (req,res,next)=>{
+      const header = req.headers.authorization
+      if(header === "looged in"){
+        next()
+      }else{
+        res.status(401).json({massage:"Unauthorized"})
+      }
+    }, async(req,res)=>{
       const {id} = req.params
       const result = await mediqueueCollection.findOne({_id: new ObjectId(id)})
       res.json(result)
