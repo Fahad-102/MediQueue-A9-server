@@ -125,7 +125,7 @@ async function run() {
   }
   });
 
-  app.get("/featured",async(req,res)=>{
+  app.get("/availableTutors",async(req,res)=>{
     const result = await mediqueueCollection.find().limit(6).toArray()
     res.json(result)
   })
