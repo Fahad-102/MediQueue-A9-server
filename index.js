@@ -105,11 +105,25 @@ async function run() {
 });
 
 
-    app.post("/booking",async(req,res)=>{
-      const bookingData = req.body
-      const result = await bookingCollection.insertOne(bookingData)
-      res.json(result)
-    })
+   app.post("/booking", async (req, res) => {
+  try {
+    const bookingData = req.body;
+    const { tutorId } = bookingData;
+
+    const bookingResult = await bookingCollection.insertOne(bookingData);
+
+    if (bookingResult.insertedId && tutorId) {
+      await mediqueueCollection.updateOne(
+        { _id: new ObjectId(tutorId) },
+        { $inc: { totalSlot: -1 } } 
+      );
+    }
+
+    res.json(bookingResult);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
     app.post("/tutors", async(req,res)=>{
       const tutorsData = req.body
