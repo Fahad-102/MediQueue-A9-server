@@ -23,7 +23,34 @@ async function run() {
     await client.connect();
     const db = client.db("mediqueue")
     const mediqueueCollection = db.collection("tutors")
+    const bookingCollection = db.collection("booking")
 
+
+
+  app.patch("/tutors/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedData = req.body;
+
+    const result = await mediqueueCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedData }
+    );
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+  });
+
+  app.delete("/tutors/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await mediqueueCollection.deleteOne({ _id: new ObjectId(id) });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+  });
 
     app.patch("/tutors/:id",async (req,res)=>{
       const {id} = req.params
@@ -51,6 +78,36 @@ async function run() {
     
     app.get("/tutors",async(req,res)=>{
       const result = await mediqueueCollection.find().toArray()
+      res.json(result)
+    })
+
+
+  
+    app.get("/booking/:userId", async (req, res) => {
+    try {
+    const { userId } = req.params;
+    const result = await bookingCollection.find({ userID: userId }).toArray();
+    
+    res.json(result);
+    } catch (err) {
+    res.status(500).json({ error: err.message });
+    }
+    });
+
+   app.delete("/booking/:bookingId", async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const result = await bookingCollection.deleteOne({ _id: new ObjectId(bookingId) });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+    app.post("/booking",async(req,res)=>{
+      const bookingData = req.body
+      const result = await bookingCollection.insertOne(bookingData)
       res.json(result)
     })
 
