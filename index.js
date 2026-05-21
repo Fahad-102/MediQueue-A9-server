@@ -123,7 +123,14 @@ async function run() {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+  });
+
+  app.get("/featured",async(req,res)=>{
+    const result = await mediqueueCollection.find().limit(4).toArray()
+    res.json(result)
+  })
+
+
 
     app.post("/tutors", async(req,res)=>{
       const tutorsData = req.body
