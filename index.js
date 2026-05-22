@@ -6,6 +6,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const dotenv = require("dotenv");
 const express = require("express");
 const cors = require("cors");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 
 dotenv.config();
 
@@ -33,9 +34,15 @@ const client = new MongoClient(uri, {
 });
 
 // ---------------- MAIN ----------------
+
+const JWKS = createRemoteJWKSet(
+  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
+)
+
+
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     console.log("MongoDB Connected Successfully");
 
     const db = client.db("mediqueue");
@@ -44,26 +51,58 @@ async function run() {
 
     // ---------------- TUTORS ----------------
 
-    app.get("/tutors", async (req, res) => {
-      try {
-        const { search } = req.query;
 
-        let query = {};
-
-        if (search) {
-          query = {
-            name: { $regex: search, $options: "i" },
-          };
-        }
-
-        const result = await mediqueueCollection.find(query).toArray();
-        res.json(result || []);
-      } catch (err) {
-        res.status(500).json([]);
+    const verifyToken = async(req, res, next) => {
+      const header = req?.headers['authorization'];
+      if (!header) {
+        return res.status(401).json({ error: "Unauthorized" });
       }
-    });
+      const token = header?.split(' ')[1];
+      if(!token){
+        return res.status(401).json({ error: "Unauthorized" });
+      }
 
-    app.get("/tutors/:id", async (req, res) => {
+      try{
+        const {payLoad} = await jwtVerify(token, JWKS)
+        console.log(payLoad)
+        next()
+      }catch(err){
+        return res.status(403).json({ error: "Forbidden" });
+      }
+    }
+
+  app.get("/tutors", async (req, res) => {
+  try {
+    const { search, subject, minPrice, maxPrice } = req.query;
+
+    let query = {};
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { subject: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    if (subject && subject !== "All") {
+      query.subject = subject;
+    }
+
+    if (minPrice || maxPrice) {
+      query.price = {};
+      if (minPrice) query.price.$gte = Number(minPrice);
+      if (maxPrice) query.price.$lte = Number(maxPrice);
+    }
+
+    const result = await mediqueueCollection.find(query).toArray();
+
+    res.json(result || []);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+    app.get("/tutors/:id",verifyToken, async (req, res) => {
       try {
         const result = await mediqueueCollection.findOne({
           _id: new ObjectId(req.params.id),
@@ -75,7 +114,8 @@ async function run() {
       }
     });
 
-    app.post("/tutors", async (req, res) => {
+
+    app.post("/tutors",verifyToken,async (req, res) => {
       try {
         const result = await mediqueueCollection.insertOne(req.body);
         res.json(result);
@@ -84,7 +124,7 @@ async function run() {
       }
     });
 
-    app.patch("/tutors/:id", async (req, res) => {
+    app.patch("/tutors/:id",verifyToken, async (req, res) => {
       try {
         const result = await mediqueueCollection.updateOne(
           { _id: new ObjectId(req.params.id) },
@@ -120,7 +160,7 @@ async function run() {
 
     // ---------------- BOOKING ----------------
 
-    app.post("/booking", async (req, res) => {
+    app.post("/booking",verifyToken, async (req, res) => {
       try {
         const bookingData = req.body;
         const { tutorId } = bookingData;
@@ -152,7 +192,7 @@ async function run() {
       }
     });
 
-    app.delete("/booking/:bookingId", async (req, res) => {
+    app.delete("/booking/:bookingId",verifyToken, async (req, res) => {
       try {
         const result = await bookingCollection.deleteOne({
           _id: new ObjectId(req.params.bookingId),
@@ -164,7 +204,7 @@ async function run() {
       }
     });
 
-    console.log("API Ready 🚀");
+    console.log("API Ready to use");
   } catch (err) {
     console.error(err);
   }
