@@ -35,15 +35,17 @@ const client = new MongoClient(uri, {
 
 // ---------------- MAIN ----------------
 
+const jwksUrl = process.env.CLIENT_URL || "https://mediqueue-woad.vercel.app";
+
 const JWKS = createRemoteJWKSet(
-  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
-)
+  new URL(`${jwksUrl}/api/auth/jwks`)
+);
 console.log("JWKS:", process.env.CLIENT_URL);
 
 
 async function run() {
   try {
-    // await client.connect();
+    await client.connect();
     console.log("MongoDB Connected Successfully");
 
     const db = client.db("mediqueue");
