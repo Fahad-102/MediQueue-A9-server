@@ -1,7 +1,6 @@
 const dns = require("node:dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
-
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const dotenv = require("dotenv");
 const express = require("express");
@@ -15,7 +14,7 @@ const port = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: true,
+    origin: process.env.CLIENT_URL, // FIXED (was true)
     credentials: true,
   })
 );
@@ -33,78 +32,74 @@ const client = new MongoClient(uri, {
   },
 });
 
-// ---------------- MAIN ----------------
-
+// ---------------- FIXED JWKS ----------------
 const JWKS = createRemoteJWKSet(
   new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
-)
-console.log("JWKS:", process.env.CLIENT_URL);
+);
 
+// ---------------- MAIN ----------------
 
 async function run() {
   try {
-    // await client.connect();
+    await client.connect(); // FIXED (must stay)
     console.log("MongoDB Connected Successfully");
 
     const db = client.db("mediqueue");
     const mediqueueCollection = db.collection("tutors");
     const bookingCollection = db.collection("booking");
 
+    // ---------------- AUTH MIDDLEWARE ----------------
+    const verifyToken = async (req, res, next) => {
+      const header = req.headers.authorization;
+
+      if (!header) return res.status(401).json({ error: "Unauthorized" });
+
+      const token = header.split(" ")[1];
+
+      try {
+        const { payload } = await jwtVerify(token, JWKS);
+
+        req.user = payload;
+        next();
+      } catch (err) {
+        console.log("JWT ERROR:", err);
+        return res.status(403).json({ error: "Forbidden" });
+      }
+    };
+
     // ---------------- TUTORS ----------------
 
+    app.get("/tutors", async (req, res) => {
+      try {
+        const { search, subject, minPrice, maxPrice } = req.query;
 
-   const verifyToken = async (req, res, next) => {
-  const header = req.headers.authorization;
+        let query = {};
 
-  if (!header) return res.status(401).json({ error: "Unauthorized" });
+        if (search) {
+          query.$or = [
+            { tutorName: { $regex: search, $options: "i" } },
+            { subject: { $regex: search, $options: "i" } },
+          ];
+        }
 
-  const token = header.split(" ")[1];
+        if (subject && subject !== "All") {
+          query.subject = subject;
+        }
 
-  try {
-    const { payload } = await jwtVerify(token, JWKS);
+        if (minPrice || maxPrice) {
+          query.hourlyFee = {};
+          if (minPrice) query.hourlyFee.$gte = Number(minPrice);
+          if (maxPrice) query.hourlyFee.$lte = Number(maxPrice);
+        }
 
-    console.log("USER:", payload);
+        const result = await mediqueueCollection.find(query).toArray();
+        res.json(result || []);
+      } catch (err) {
+        res.status(500).json({ error: "Server error" });
+      }
+    });
 
-    req.user = payload;
-    next();
-  } catch (err) {
-    console.log("JWT ERROR:", err);
-    return res.status(403).json({ error: "Forbidden" });
-  }
-};
-
-  app.get("/tutors", async (req, res) => {
-  try {
-    const { search, subject, minPrice, maxPrice } = req.query;
-
-    let query = {};
-
-    if (search) {
-      query.$or = [
-        { tutorName: { $regex: search, $options: "i" } },
-        { subject: { $regex: search, $options: "i" } },
-      ];
-    }
-
-    if (subject && subject !== "All") {
-      query.subject = subject;
-    }
-
-    if (minPrice || maxPrice) {
-      query.hourlyFee = {};
-      if (minPrice) query.hourlyFee.$gte = Number(minPrice);
-      if (maxPrice) query.hourlyFee.$lte = Number(maxPrice);
-    }
-
-    const result = await mediqueueCollection.find(query).toArray();
-
-    res.json(result || []);
-  } catch (err) {
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-    app.get("/tutors/:id",verifyToken, async (req, res) => {
+    app.get("/tutors/:id", verifyToken, async (req, res) => {
       try {
         const result = await mediqueueCollection.findOne({
           _id: new ObjectId(req.params.id),
@@ -116,8 +111,7 @@ async function run() {
       }
     });
 
-
-    app.post("/tutors",verifyToken,async (req, res) => {
+    app.post("/tutors", verifyToken, async (req, res) => {
       try {
         const result = await mediqueueCollection.insertOne(req.body);
         res.json(result);
@@ -126,7 +120,7 @@ async function run() {
       }
     });
 
-    app.patch("/tutors/:id",verifyToken, async (req, res) => {
+    app.patch("/tutors/:id", verifyToken, async (req, res) => {
       try {
         const result = await mediqueueCollection.updateOne(
           { _id: new ObjectId(req.params.id) },
@@ -139,7 +133,7 @@ async function run() {
       }
     });
 
-    app.delete("/tutors/:id", async (req, res) => {
+    app.delete("/tutors/:id", verifyToken, async (req, res) => {
       try {
         const result = await mediqueueCollection.deleteOne({
           _id: new ObjectId(req.params.id),
@@ -162,7 +156,7 @@ async function run() {
 
     // ---------------- BOOKING ----------------
 
-    app.post("/booking",verifyToken, async (req, res) => {
+    app.post("/booking", verifyToken, async (req, res) => {
       try {
         const bookingData = req.body;
         const { tutorId } = bookingData;
@@ -194,7 +188,7 @@ async function run() {
       }
     });
 
-    app.delete("/booking/:bookingId",verifyToken, async (req, res) => {
+    app.delete("/booking/:bookingId", verifyToken, async (req, res) => {
       try {
         const result = await bookingCollection.deleteOne({
           _id: new ObjectId(req.params.bookingId),
@@ -208,7 +202,7 @@ async function run() {
 
     console.log("API Ready to use");
   } catch (err) {
-    console.error(err);
+    console.error("SERVER ERROR:", err);
   }
 }
 
