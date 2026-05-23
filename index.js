@@ -6,7 +6,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const dotenv = require("dotenv");
 const express = require("express");
 const cors = require("cors");
-const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
+const { createRemoteJWKSet, jwtVerify } = require("jose");
 
 dotenv.config();
 
@@ -38,6 +38,7 @@ const client = new MongoClient(uri, {
 const JWKS = createRemoteJWKSet(
   new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
 )
+console.log("JWKS:", process.env.CLIENT_URL);
 
 
 async function run() {
@@ -52,24 +53,25 @@ async function run() {
     // ---------------- TUTORS ----------------
 
 
-    const verifyToken = async(req, res, next) => {
-      const header = req?.headers['authorization'];
-      if (!header) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-      const token = header?.split(' ')[1];
-      if(!token){
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+   const verifyToken = async (req, res, next) => {
+  const header = req.headers.authorization;
 
-      try{
-        const {payLoad} = await jwtVerify(token, JWKS)
-        console.log(payLoad)
-        next()
-      }catch(err){
-        return res.status(403).json({ error: "Forbidden" });
-      }
-    }
+  if (!header) return res.status(401).json({ error: "Unauthorized" });
+
+  const token = header.split(" ")[1];
+
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
+
+    console.log("USER:", payload);
+
+    req.user = payload;
+    next();
+  } catch (err) {
+    console.log("JWT ERROR:", err);
+    return res.status(403).json({ error: "Forbidden" });
+  }
+};
 
   app.get("/tutors", async (req, res) => {
   try {
@@ -79,7 +81,7 @@ async function run() {
 
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: "i" } },
+        { tutorName: { $regex: search, $options: "i" } },
         { subject: { $regex: search, $options: "i" } },
       ];
     }
@@ -89,9 +91,9 @@ async function run() {
     }
 
     if (minPrice || maxPrice) {
-      query.price = {};
-      if (minPrice) query.price.$gte = Number(minPrice);
-      if (maxPrice) query.price.$lte = Number(maxPrice);
+      query.hourlyFee = {};
+      if (minPrice) query.hourlyFee.$gte = Number(minPrice);
+      if (maxPrice) query.hourlyFee.$lte = Number(maxPrice);
     }
 
     const result = await mediqueueCollection.find(query).toArray();
